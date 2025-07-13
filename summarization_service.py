@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import requests.exceptions 
 
 from dotenv import load_dotenv
 
@@ -89,6 +91,12 @@ def summarize_transcript(transcript_id: str):
     logger.info("Summary saved.")
 
 
+@retry(
+    stop=stop_after_attempt(3),  # Try up to 3 times
+    wait=wait_exponential(multiplier=1, min=2, max=10),  # Wait time grows: 2s, 4s, 8s...
+    retry=retry_if_exception_type(requests.exceptions.RequestException),  # Retry only if it's a request error
+)
+
 def call_llm_api(prompt: str) -> str:
     """
     Call the LLM API to generate a summary.
@@ -96,7 +104,7 @@ def call_llm_api(prompt: str) -> str:
     :return: The generated summary
     """
     estimated_tokens = len(prompt.split()) * 1.3
-    timeout = max(60, int(estimated_tokens * 0.04))
+    timeout = max(60, int(estimated_tokens * 0.05)) #changed 0.04 to 0.05 so that the function will be more generous than before
 
     logger.info(f"Call LLM API with {timeout} seconds timeout.")
 
